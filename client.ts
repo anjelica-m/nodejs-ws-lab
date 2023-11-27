@@ -11,6 +11,8 @@ interface ICoords {
   }
 }
 
+const DEBUG = false; // Render debug physics entities
+
 function uuid(
   a?: any               // placeholder
 ): string {
@@ -32,14 +34,13 @@ function uuid(
       uuid              // random hex digits
     )
 }
-const DEBUG = false; // Render debug physics entities
 
 class GameScene extends Phaser.Scene {
   private HOST = window.location.hostname; // localhost and 127.0.0.1 handled
   private PORT = 8080; // change this if needed
 
+  private VELOCITY = 100;
   private wsClient?: WebSocket;
-  private player?: Phaser.GameObjects.Sprite;
   private leftKey?: Phaser.Input.Keyboard.Key;
   private rightKey?: Phaser.Input.Keyboard.Key;
   private upKey?: Phaser.Input.Keyboard.Key;
@@ -54,7 +55,11 @@ class GameScene extends Phaser.Scene {
    * Load the assets required by the scene
    */
   public preload() {
-    this.load.image("bunny", "static/bunny.png");
+    this.load.tilemapCSV("map", "static/level_map.csv");
+    this.load.image("tiles", "static/tiles_16.png");
+    this.load.spritesheet("player", "static/spaceman.png", {
+      frameWidth: 16, frameHeight: 16
+    });
   }
 
   /**
@@ -64,10 +69,7 @@ class GameScene extends Phaser.Scene {
     // Initialize the websocket client
     this.wsClient = new WebSocket(`ws://${this.HOST}:${this.PORT}`);
     this.wsClient.onopen = (event) => console.log(event);
-    // TODO: multiplayer functionality
-    this.wsClient.onmessage = (wsMsgEvent) => {
-      console.log(wsMsgEvent)
-    }
+
     this.wsClient.onmessage = (wsMsgEvent) => {
       const allCoords: ICoords = JSON.parse(wsMsgEvent.data);
       for (const playerId of Object.keys(allCoords)) {
@@ -86,7 +88,7 @@ class GameScene extends Phaser.Scene {
           } else {
             player.setX(x);
             player.setY(y);
-            player.setFrame(frame);  
+            player.setFrame(frame);
           }
         } else {
           // We have not seen this player before, create it!
@@ -148,32 +150,41 @@ class GameScene extends Phaser.Scene {
     this.rightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
     this.upKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
     this.downKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
-  
-    this.players[this.id] = this.physics.add.sprite(48, 48, "player", 1);
-    this.physics.add.collider(this.players[this.id], layer);
-    this.cameras.main.startFollow(this.players[this.id]);
-  
   }
 
   public update() {
     for (const playerId of Object.keys(this.players)) {
       const player = this.players[playerId];
-  
+
       if (playerId !== this.id) {
-        player.setTint(0x0000aa); // so we can tell our guy apart
+        player.setTint(0x0000aa);
         player.update();
         continue;
       }
-    if (this.players[this.id]) {
-      const player = this.players[this.id];
+
       let moving = false;
-  
       if (this.leftKey && this.leftKey.isDown) {
         (player.body as Phaser.Physics.Arcade.Body).setVelocityX(-this.VELOCITY);
         player.play("left", true);
         moving = true;
+      } else if (this.rightKey && this.rightKey.isDown) {
+        (player.body as Phaser.Physics.Arcade.Body).setVelocityX(this.VELOCITY);
+        player.play("right", true);
+        moving = true;
+      } else {
+        (player.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
       }
-    
+      if (this.upKey && this.upKey.isDown) {
+        (player.body as Phaser.Physics.Arcade.Body).setVelocityY(-this.VELOCITY);
+        player.play("up", true);
+        moving = true;
+      } else if (this.downKey && this.downKey.isDown) {
+        (player.body as Phaser.Physics.Arcade.Body).setVelocityY(this.VELOCITY);
+        player.play("down", true);
+        moving = true;
+      } else {
+        (player.body as Phaser.Physics.Arcade.Body).setVelocityY(0);
+      }
       if (!moving) {
         (player.body as Phaser.Physics.Arcade.Body).setVelocity(0);
         player.anims.stop();
@@ -185,42 +196,8 @@ class GameScene extends Phaser.Scene {
           frame: player.frame.name
         }));
       }
-
-    if (this.players[this.id]) {
-      let moving = false;
-      if (this.leftKey && this.leftKey.isDown) {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityX(-this.VELOCITY);
-        this.players[this.id].play("left", true);
-        moving = true;
-      } else if (this.rightKey && this.rightKey.isDown) {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityX(this.VELOCITY);
-        this.players[this.id].play("right", true);
-        moving = true;
-      } else {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityX(0);
-      }
-      if (this.upKey && this.upKey.isDown) {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityY(-this.VELOCITY);
-        this.players[this.id].play("up", true);
-        moving = true;
-      } else if (this.downKey && this.downKey.isDown) {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityY(this.VELOCITY);
-        this.players[this.id].play("down", true);
-        moving = true;
-      } else {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocityY(0);
-      }
-      if (!moving) {
-        (this.players[this.id].body as Phaser.Physics.Arcade.Body).setVelocity(0);
-        this.players[this.id].anims.stop();
-      }
       player.update();
-      }
     }
-    // Create an interactive, draggable bunny sprite
-    this.sprite = this.add.sprite(100, 100, "bunny");
-    this.sprite.setInteractive();
-    this.input.setDraggable(this.sprite);
   }
 }
 
@@ -230,8 +207,14 @@ const config: GameConfig = {
   type: Phaser.AUTO,
   width: 800,
   height: 500,
-  scene: [GameScene]
-};
+  scene: [GameScene],
+  input: { keyboard: true },
+  physics: {
+    default: "arcade",
+    arcade: { debug: DEBUG }
+  },
+  render: { pixelArt: true, antialias: false }
+}
 
 class LabDemoGame extends Phaser.Game {
   constructor(config: GameConfig) {
@@ -241,4 +224,4 @@ class LabDemoGame extends Phaser.Game {
 
 window.addEventListener("load", () => {
   new LabDemoGame(config);
-})
+});

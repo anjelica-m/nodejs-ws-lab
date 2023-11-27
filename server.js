@@ -32,13 +32,6 @@ function setupWSServer(server) {
     server,
     autoAcceptConnections: false
   });
-  // let actorCoordinates = { x: 100, y: 100 };
-  // wss.on("connection", (ws) => {
-  //   ws.on("message", (rawMsg) => {
-  //     console.log(`RECV: ${rawMsg}`);
-  //     const incommingMessage = JSON.parse(rawMsg);
-  //     actorCoordinates.x = incommingMessage.x;
-  //     actorCoordinates.y = incommingMessage.y;
   let actorCoordinates = { };
   wss.on("connection", (ws) => {
     ws.on("message", (rawMsg) => {
